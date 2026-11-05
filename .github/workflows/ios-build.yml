@@ -1,0 +1,64 @@
+name: Build iOS App
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Compile SwiftUI for iPhone
+    runs-on: macos-15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Compile for iPhone Simulator
+        run: |
+          xcodebuild \
+            -project MyFirstApp.xcodeproj \
+            -scheme MyFirstApp \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Compile for iPhone (without signing)
+        run: |
+          xcodebuild \
+            -project MyFirstApp.xcodeproj \
+            -scheme MyFirstApp \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package developer artifacts
+        run: |
+          mkdir -p Payload dist
+          cp -R build/Build/Products/Release-iphoneos/MyFirstApp.app Payload/
+          zip -qr dist/MyFirstApp-UNSIGNED-NOT-INSTALLABLE.ipa Payload
+          zip -qr dist/MyFirstApp-Xcode-project.zip MyFirstApp.xcodeproj MyFirstApp project.yml
+          rm -rf Payload
+
+      - name: Upload compiled artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyFirstApp-build
+          path: dist/
+          if-no-files-found: error
